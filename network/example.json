@@ -2,7 +2,7 @@
     "train_data_path": "C:/Users/nelsite/Desktop/Coding_with_Fahim/Topological_Segmentation/TopoSegNetSimple/TopoSegNetSimple/datagenerator/CREMI_AB_64_64_train_0",
     "val_data_path": "C:/Users/nelsite/Desktop/Coding_with_Fahim/Topological_Segmentation/TopoSegNetSimple/TopoSegNetSimple/datagenerator/CREMI_AB_64_64_test_0",
     "output_path": "C:/Users/nelsite/Desktop/Coding_with_Fahim/Topological_Segmentation/TopoSegNetSimple/network/Output",
-    "name":"TopoSeg_Training_test2_dim0",
+    "name":"TopoSeg_Training_test1_dim1",
     "epoch": 30,
     "resume": "C:/Users/nelsite/Desktop/Coding_with_Fahim/Topological_Segmentation/TopoSegNetSimple/network/Output/Unet_Training/checkpoints/Unet_Training_49.pth",
     "learning_rate": 1e-4,
