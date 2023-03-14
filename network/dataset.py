@@ -142,10 +142,10 @@ class ImageBoundary(Dataset):
     
     def __getitem__(self, index):
         image = load_np_file(self.img_dir + self.img_list[index]).astype(np.float32)
-        image = rescale(image.transpose(2,1,0),-1,1)
+        image = rescale(image.transpose(2,1,0))
 
         boundary = load_boundary_file(self.boundary_dir + self.boundary_list[index]).astype(np.float32)
-        boundary=rescale(boundary,-1,1)
+        #boundary=rescale(boundary,-1,1)
         return image, boundary
     def __len__(self):
         return self.n_imgs
