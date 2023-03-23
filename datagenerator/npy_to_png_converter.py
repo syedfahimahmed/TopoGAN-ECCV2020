@@ -4,10 +4,10 @@ import os
 from PIL import Image
 
 # Directory containing the .npy files
-npy_dir = 'C:/Users/nelsite/Desktop/Coding_with_Fahim/Topological_Segmentation/TopoSegNetSimple/Datas/CREMI_AB_64_64_train_0/boundaries'
+npy_dir = 'C:/Users/syed_fahim_ahmed/Desktop/Coding_With_Fahim/Unet_MC/dataset/training/boundaries'
 
 # Directory to save the .png files
-png_dir = 'C:/Users/nelsite/Desktop/Coding_with_Fahim/Topological_Segmentation/TopoSegNetSimple/Datas/CREMI_AB_64_64_train_0_png/boundaries'
+png_dir = 'C:/Users/syed_fahim_ahmed/Desktop/Coding_With_Fahim/Unet_MC/dataset/training_png/boundaries'
 
 # Loop through the .npy files in the directory
 for npy_file in os.listdir(npy_dir):

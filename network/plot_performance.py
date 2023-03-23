@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
-performance_file = "C:/Users/syed_fahim_ahmed/Desktop/Coding_With_Fahim/Unet_MC/TopoSegNetSimple/Output/Topo_Training_Unet_120_epochs_small/result/performance.txt"
-performance_file_wnet = "C:/Users/syed_fahim_ahmed/Desktop/Coding_With_Fahim/Unet_MC/TopoSegNetSimple/Output/Wnet_Training_Unet_120_epochs_small/result/performance.txt"
+performance_file = "C:/Users/syed_fahim_ahmed/Desktop/Coding_With_Fahim/Unet_MC/TopoSegNetSimple/New_Output/Topo_50_epochs_small_5/result/performance.txt"
+#performance_file_wnet = "C:/Users/syed_fahim_ahmed/Desktop/Coding_With_Fahim/Unet_MC/TopoSegNetSimple/Output/Wnet_Training_Unet_120_epochs_small/result/performance.txt"
 
 # Read data from txt file, skipping the first line which is assumed to be the header
 with open(performance_file) as f:
@@ -26,7 +26,7 @@ for line in data:
     
 
 # Read data from txt file, skipping the first line which is assumed to be the header
-with open(performance_file_wnet) as f_wnet:
+'''with open(performance_file_wnet) as f_wnet:
     data_wnet = f_wnet.readlines()[1:]
 
 epoch_wnet = []
@@ -44,12 +44,12 @@ for line_wnet in data_wnet:
     prec_wnet.append(float(vals_wnet[2]))
     rec_wnet.append(float(vals_wnet[3]))
     f1_wnet.append(float(vals_wnet[4]))
-    l1_diff_wnet.append(float(vals_wnet[5]))
+    l1_diff_wnet.append(float(vals_wnet[5]))'''
 
 
 # Plot accuracy and save the figure
-plt.plot(epoch, acc, label="Refinement Training")
-plt.plot(epoch_wnet, acc_wnet, label="WNet")
+plt.plot(epoch, acc)
+plt.ylim([0, 1])
 plt.xlabel("Epoch")
 plt.ylabel("Accuracy")
 plt.legend()
@@ -58,8 +58,8 @@ plt.savefig("accuracy.png")
 plt.show()
 
 # Plot precision and save the figure
-plt.plot(epoch, prec, label="Refinement Training")
-plt.plot(epoch_wnet, prec_wnet, label="WNet")
+plt.plot(epoch, prec)
+plt.ylim([0, 1])
 plt.xlabel("Epoch")
 plt.ylabel("Precision")
 plt.legend()
@@ -68,8 +68,8 @@ plt.savefig("precision.png")
 plt.show()
 
 # Plot recall and save the figure
-plt.plot(epoch, rec, label="Refinement Training")
-plt.plot(epoch_wnet, rec_wnet, label="WNet")
+plt.plot(epoch, rec)
+plt.ylim([0, 1])
 plt.xlabel("Epoch")
 plt.ylabel("Recall")
 plt.legend()
@@ -78,8 +78,8 @@ plt.savefig("recall.png")
 plt.show()
 
 # Plot F1 score and save the figure
-plt.plot(epoch, f1, label="Refinement Training")
-plt.plot(epoch_wnet, f1_wnet, label="WNet")
+plt.plot(epoch, f1)
+plt.ylim([0, 1])
 plt.xlabel("Epoch")
 plt.ylabel("F1 Score")
 plt.legend()
@@ -88,8 +88,7 @@ plt.savefig("f1_score.png")
 plt.show()
 
 # Plot L1 difference per image and save the figure
-plt.plot(epoch, l1_diff, label="Refinement Training")
-plt.plot(epoch_wnet, l1_diff_wnet, label="WNet")
+plt.plot(epoch, l1_diff)
 plt.xlabel("Epoch")
 plt.ylabel("L1 Difference")
 plt.legend()
