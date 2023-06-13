@@ -1,0 +1,11 @@
+DATA:
+  DIM: 2                                                        # data dimension
+  DATA_PATH: './data/dream3d/'                                    # Path to dataset
+  FORMAT: '.png'
+  DATASET: 'dream3d'                                              # Dataset name
+  IMG_SIZE: [48, 48]                                            # Input image size
+  TRAIN_SAMPLES: 8000
+  VAL_SAMPLES: 2000
+  NUM_PATCH: 1                                                  # no of patch from each volume
+  IN_CHANNELS: 1
+  OUT_CHANNELS: 1

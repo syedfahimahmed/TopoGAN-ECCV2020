@@ -38,10 +38,9 @@ import torch.nn.functional as F
 
 from tqdm import tqdm
 from torchvision.utils import save_image
+import model
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
-
-# from topoloss_pytorch import HuTopoLoss
 
 
 parser = ArgumentParser()
@@ -83,22 +82,20 @@ def main(args):
     np.random.seed(config.TRAIN.SEED)
     torch.random.manual_seed(config.TRAIN.SEED)
     
-    if args.resume and args.pretrained:
-        raise Exception('Do not use pretrained and resume at the same time.')
-    
-
-    # monai.config.print_config()
-    # logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-
     # create a temporary directory and 40 random image, mask pairs
     data_path = dataconfig.DATA.DATA_PATH
 
     images = sorted(glob(os.path.join(data_path+'images', "*"+dataconfig.DATA.FORMAT)))
     segs = sorted(glob(os.path.join(data_path+'labels', "*"+dataconfig.DATA.FORMAT)))
     
-    # train and validation files
-    train_files = [{"img": img, "seg": seg} for img, seg in zip(images[:dataconfig.DATA.TRAIN_SAMPLES], segs[:dataconfig.DATA.TRAIN_SAMPLES])]
-    val_files = [{"img": img, "seg": seg} for img, seg in zip(images[-dataconfig.DATA.VAL_SAMPLES:], segs[-dataconfig.DATA.VAL_SAMPLES:])]
+    # Shuffle the data
+    combined_data = list(zip(images, segs))
+    random.shuffle(combined_data)
+    images_shuffled, segs_shuffled = zip(*combined_data)
+
+    # Train and validation files
+    train_files = [{"img": img, "seg": seg} for img, seg in zip(images_shuffled[:dataconfig.DATA.TRAIN_SAMPLES], segs_shuffled[:dataconfig.DATA.TRAIN_SAMPLES])]
+    val_files = [{"img": img, "seg": seg} for img, seg in zip(images_shuffled[-dataconfig.DATA.VAL_SAMPLES:], segs_shuffled[-dataconfig.DATA.VAL_SAMPLES:])]
 
     # define transforms for image and segmentation
     train_transforms = Compose(
@@ -142,7 +139,7 @@ def main(args):
     # create a validation data loader
     val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
     val_loader = DataLoader(val_ds,
-                            batch_size=config.TRAIN.BATCH_SIZE,
+                            batch_size=5,
                             num_workers=config.TRAIN.NUM_WORKERS,
                             collate_fn=list_data_collate)
     
@@ -155,14 +152,9 @@ def main(args):
     # create UNet, DiceLoss and Adam optimizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Running on", device)
-    model = monai.networks.nets.UNet(
-        spatial_dims=dataconfig.DATA.DIM,
-        in_channels=dataconfig.DATA.IN_CHANNELS,
-        out_channels=dataconfig.DATA.OUT_CHANNELS,
-        channels=config.MODEL.CHANNELS,
-        strides=config.MODEL.STRIDES,
-        num_res_units=config.MODEL.NUM_RES_UNITS,
-    ).to(device)
+    learning_model = model.AutoEncoder(64,1,256,1,16,'unet').to(device)
+    
+    
     
     # Loss function choice
     if config.LOSS.USE_LOSS == 'Dice':
@@ -218,30 +210,17 @@ def main(args):
         except:
             pass
         
-    optimizer = torch.optim.Adam(model.parameters(), config.TRAIN.LR)
+    optimizer = torch.optim.Adam(learning_model.parameters(), config.TRAIN.LR)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1000000, gamma=0.1)   #always check that the step size is high enough
     
     # Resume training
     last_epoch = 0
-    if args.resume:
-        dic = torch.load(args.resume)
-        model.load_state_dict(dic['model'])
-        optimizer.load_state_dict(dic['optimizer'])
-        scheduler.load_state_dict(dic['scheduler'])
-        last_epoch = int(scheduler.last_epoch/len(train_loader))
-        
-    # Start from pretrained model
-    if args.pretrained:
-        dic = torch.load(args.pretrained)
-        model.load_state_dict(dic['model'])
 
         
     # start a typical PyTorch training
     best_metric = -1
-    #best_betti_distance = -1
     best_metric_epoch = -1
-    #best_betti_distance_epoch = -1
-    epoch_loss_values = list()
+
     metric_values = list()
     writer = SummaryWriter('./runs/'+dataconfig.DATA.DATASET+'/'+exp_name)
     
@@ -261,25 +240,21 @@ def main(args):
     perf_log = open(performance_path, 'w')
     perf_log.write('epoch, dice_score\n')
     
+
     for epoch in tqdm(range(last_epoch, config.TRAIN.MAX_EPOCHS)):
-        #print("-" * 10)
-        #print(f"epoch {epoch + 1}/{max_epoch}")
-        model.train()
+
+        learning_model.train()
         epoch_loss = 0
         step = 0
         for batch_data in tqdm(train_loader):
             step += 1
             inputs, labels = batch_data["img"].to(device), batch_data["seg"].to(device)
             optimizer.zero_grad()
-            #print('input')
-            #print(inputs.size())
-            #print(torch.squeeze(inputs).permute(0,3,1,2).size())
-            #print(labels.size())
+            
             if dataconfig.DATA.IN_CHANNELS == 1:
-                outputs = model(inputs)
+                outputs, _ = learning_model(inputs)
             elif dataconfig.DATA.IN_CHANNELS == 3:
-                outputs = model(torch.squeeze(inputs).permute(0,3,1,2))
-            #print(outputs.size())
+                outputs, _ = learning_model(torch.squeeze(inputs).permute(0,3,1,2))
             if config.LOSS.USE_LOSS == 'Dice':
                 loss = loss_function(outputs, labels)
             else:
@@ -293,7 +268,7 @@ def main(args):
             train_plabel = torch.zeros(train_seg_pred.size()).to(device)
             train_plabel[train_seg_pred >= 0.5] = 1
             
-            if step == 49 or step == 50:
+            if step == 10:
                 num_rows = config.TRAIN.BATCH_SIZE * dataconfig.DATA.NUM_PATCH
                 train_scaler = inputs.cpu().view(
                     num_rows, 1, 48, 48).double()
@@ -312,7 +287,7 @@ def main(args):
                 ), f"{train_result_dir}epoch_{epoch+1}_batch{step}.png", padding=4, nrow=24)
             
             epoch_len = len(train_ds) // train_loader.batch_size
-            #print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
+
             if step % config.TRAIN.LOG_INTERVAL == 0:
                 writer.add_scalar('train_loss', loss.item(), epoch_len * epoch + step)
                 if config.LOSS.USE_LOSS == 'Dice':
@@ -326,7 +301,7 @@ def main(args):
         val_loss = 0
         
         if (epoch + 1) % config.TRAIN.VAL_INTERVAL == 0:
-            model.eval()
+            learning_model.eval()
             with torch.no_grad():
                 val_images = None
                 val_labels = None
@@ -340,53 +315,36 @@ def main(args):
                     roi_size = tuple(dataconfig.DATA.IMG_SIZE)
                     sw_batch_size = 4
                     if dataconfig.DATA.IN_CHANNELS == 1:
-                        val_outputs = sliding_window_inference(val_images, roi_size, sw_batch_size, model)
+                        val_outputs = sliding_window_inference(val_images, roi_size, sw_batch_size, learning_model)
                     elif dataconfig.DATA.IN_CHANNELS == 3:
-                        val_outputs = sliding_window_inference(torch.squeeze(val_images).permute(0,3,1,2), roi_size, sw_batch_size, model)
+                        val_outputs = sliding_window_inference(torch.squeeze(val_images).permute(0,3,1,2), roi_size, sw_batch_size, learning_model)
                     val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
                     # compute metric for current iteration
                     dice_metric(y_pred=val_outputs, y=val_labels)
                     val_seg_pred = torch.stack(val_outputs)
-                    #val_seg_pred = model(val_images)
-                    
-                    '''if config.LOSS.USE_LOSS == 'Dice':
-                        loss = loss_function(val_seg_pred, val_labels)
-                    else:
-                        loss, dic = loss_function(val_seg_pred, val_labels)
-                    val_loss += loss.item()'''
-                    #val_seg_pred = torch.sigmoid(val_seg_pred)
-                    #plabel = torch.zeros(val_seg_pred.size()).to(device)
-                    #plabel[val_seg_pred >= 0.5] = 1
-                    
-                    val_num_rows = config.TRAIN.BATCH_SIZE
+
+                    val_num_rows = 5
                     if val_step == 1 or val_step == 2:
                         s = val_images.cpu().view(
-                            val_num_rows, 1, 312, 312).double()
+                            val_num_rows, 1, 256, 256).double()
                         gt = val_labels.cpu().view(
-                            val_num_rows, 1, 312, 312).double()
+                            val_num_rows, 1, 256, 256).double()
 
                         pred = val_seg_pred.cpu().view(
-                            val_num_rows, 1, 312, 312).double()
-                        
-                        #plabel = plabel.cpu().view(val_num_rows, 1, 312, 312).double()
+                            val_num_rows, 1, 256, 256).double()
                         
                         out_image = torch.transpose(torch.stack((s, gt, pred)), 0, 1).reshape(
-                            3*val_num_rows, 1,  312, 312)
+                            3*val_num_rows, 1,  256, 256)
                         save_image(out_image.cpu(
                         ), f"{result_dir}epoch_{epoch+1}_batch{val_step}.png", padding=4, nrow=24)
-                    #for pair in zip(val_outputs,val_labels):
-                    #    betti_distances.append(compute_Betti_distance(pair))
-                #betti_distance = torch.mean(torch.stack(betti_distances).float())
-                # aggregate the final mean dice result
+
                 metric = dice_metric.aggregate().item()
-                
-                #val_loss /= val_step
                 
                 # reset the status for next validation round
                 dice_metric.reset()
                 metric_values.append(metric)
                 dic = {}
-                dic['model'] = model.state_dict()
+                dic['model'] = learning_model.state_dict()
                 dic['optimizer'] = optimizer.state_dict()
                 dic['scheduler'] = scheduler.state_dict()
                 torch.save(dic, './models/'+dataconfig.DATA.DATASET+'/'+exp_name+'/last_model_dict.pth')
@@ -397,19 +355,7 @@ def main(args):
                     best_metric_epoch = epoch + 1
                     torch.save(dic, './models/'+dataconfig.DATA.DATASET+'/'+exp_name+'/best_model_dict.pth')
                 
-                #if betti_distance < best_betti_distance:
-                #    best_betti_distance = betti_distance
-                #    best_betti_distance_epoch = epoch + 1
-                #    torch.save(dic, 'best_betti_model_'+name+'_dict.pth')
-                    #print("saved new best metric model")
-                #print(
-                #    "current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
-                #        epoch + 1, metric, best_metric, best_metric_epoch
-                #    )
-                #)
                 writer.add_scalar("val_mean_dice", metric, epoch + 1)
-                #writer.add_scalar("val_mean_betti", betti_distance, epoch + 1)
-                # plot the last model output as GIF image in TensorBoard with the corresponding image and label
                 if dataconfig.DATA.IN_CHANNELS == 1:
                     plot_2d_or_3d_image(val_images, epoch + 1, writer, index=0, tag="image")
                 elif dataconfig.DATA.IN_CHANNELS == 3:
@@ -424,7 +370,6 @@ def main(args):
 
 
     print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
-    #print(f"train completed, best_betti_distance: {best_betti_distance:.4f} at epoch: {best_betti_distance_epoch}")
     writer.close()
     logfile.close()
     perf_log.close()

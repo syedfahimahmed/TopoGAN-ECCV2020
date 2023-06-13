@@ -15,7 +15,7 @@ TRAIN:
   SEED: 10                          # random seed for reproducibility
   MAX_EPOCHS: 100
   LR: 0.001
-  BATCH_SIZE: 10                    # Batch size for a single GPU
+  BATCH_SIZE: 100                     # Batch size for a single GPU
   SAVE_PATH: "./models/"            # save path for the checkpoint
   LOG_PATH: "./runs/"               # save path for the tensorboard log
   VAL_INTERVAL: 1                   # validation interval
